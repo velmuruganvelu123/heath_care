@@ -1,0 +1,17 @@
+dotenv
+supabase
+pandas
+Fastapi[standard]
+streamlit
+requests
+plotly
+python-dotenv
+supabase 
+pydantic
+groq
+sqlalchemy
+langchain 
+langchain-experimental
+psycopg2-binary
+openai 
+langchain-openai
