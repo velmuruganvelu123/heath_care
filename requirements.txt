@@ -15,3 +15,6 @@ langchain-experimental
 psycopg2-binary
 openai 
 langchain-openai
+langchain-community
+langchain-groq
+seaborn

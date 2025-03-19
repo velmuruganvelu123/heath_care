@@ -1,27 +1,21 @@
 import os
+import sqlite3
 import pandas as pd
-from dotenv import load_dotenv
-from supabase import create_client, Client
 
-# Load environment variables
-load_dotenv()
+DB_PATH = r"E:/Healthcare_chat_AI/data/veludb.db"
+# print("Database exists:", os.path.exists(DB_PATH))
 
-# Get Supabase credentials
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("❌ Supabase URL or Key is missing! Check your .env file.")
-
-# Initialize Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def fetch_data():
-    """Fetch data from Supabase and return as a DataFrame."""
-    try:
-        response = supabase.table("health_care").select("*").execute()
-        data = response.data if hasattr(response, "data") else []
-        return pd.DataFrame(data) if data else None
-    except Exception as e:
-        print(f"❌ Error fetching data from Supabase: {e}")
-        return None
+    conn = sqlite3.connect(DB_PATH)
+    query = "SELECT * FROM healthcare_data;"  # Fetch 5 rows
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df
+
+df =fetch_data()
+df.drop_duplicates(inplace=True)
+# print(df)  # Display the first 5 rows
+
+
+

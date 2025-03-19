@@ -12,3 +12,7 @@ class AdmissionTypeCountResponse(BaseModel):
 
 class TestResultCountResponse(BaseModel):
     test_result_counts: Dict[str, int]
+
+class Chat(BaseModel):
+    prompt: str
+

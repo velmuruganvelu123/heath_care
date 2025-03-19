@@ -1,77 +1,73 @@
-import os
 import streamlit as st
-from langchain_openai import OpenAI
-from langchain_experimental.sql import SQLDatabaseChain
-from langchain.sql_database import SQLDatabase
-from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
+import requests
 
-# Load environment variables
-load_dotenv()
+# FastAPI backend URL
+FASTAPI_URL = "http://127.0.0.1:8000/get-response"
 
-# Streamlit Configuration
-st.set_page_config(page_title="Healthcare Data Chatbot", page_icon="🩺")
-st.sidebar.title("Navigation")
+# Streamlit UI setup
+st.set_page_config(page_title="Healthcare Chatbot", page_icon="🤖", layout="wide")
+st.title("Healthcare Chatbot 🤖")
+st.write("Hello! I'm your AI healthcare assistant. Ask me anything related to healthcare!")
 
-# Retrieve API Keys
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# Sidebar for SQL Query
+st.sidebar.header("🗄️ SQL Query")
 
-# Database Connection Setup
-db_chain = None  # Initialize as None to prevent crashes
-if SUPABASE_URL and SUPABASE_KEY:
+# Initialize chat history if not already present
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display chat history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# User input
+user_input = st.chat_input("Type your message...")
+
+if user_input:
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    # Send request to FastAPI
+    payload = {"prompt": user_input}
     try:
-        DATABASE_URL = f"postgresql://postgres:{SUPABASE_KEY}@{SUPABASE_URL.split('//')[1]}/postgres"
-        # print(DATABASE_URL)
-        engine = create_engine(
-            DATABASE_URL,
-            connect_args={"connect_timeout": 30},  # Increase timeout to 30 seconds
-            pool_pre_ping=True,  # Keeps the connection alive
-            pool_recycle=1800  # Refresh connection every 30 minutes
-        )
+        response = requests.post(FASTAPI_URL, json=payload, timeout=10)
+        if response.status_code == 200:
+            response_data = response.json()
 
-        db = SQLDatabase(engine)
-        # print(db)
-        llm = OpenAI(api_key=GROQ_API_KEY, model_name="llama3-8b", temperature=0)
-        db_chain = SQLDatabaseChain.from_llm(llm=llm, db=db)
-        st.success("✅ Connected to the database!")
-    except Exception as e:
-        st.error(f"❌ Database connection failed: {e}")
-else:
-    st.error("⚠️ Database connection details are missing! Check your environment variables.")
+            # Extract SQL Query
+            sql_query = response_data.get("query", "No SQL query generated.")
 
-# Streamlit UI
-st.title("🩺 Healthcare Data Insights Chatbot")
-st.write("Ask anything related to the Healthcare Database!")
+            # Fix: Handle both string and dictionary responses
+            response_value = response_data.get("response", "No data available.")
+            if isinstance(response_value, dict):
+                result = response_value.get("data", "No data available.")
+            else:
+                result = response_value  # Use string directly
 
-# Query Input
-query = st.text_area("Enter your question:")
-if st.button("Submit"):
-    if query:
-        if db_chain:
-            try:
-                sql_query = db_chain.run(query)  # Convert LLM response to SQL
-                st.write(f"🔍 **Generated SQL Query:** ```{sql_query}```")
-
-                # Execute SQL Query
-                with engine.connect() as connection:
-                    result = connection.execute(text(sql_query))
-                    # print(result)
-                    data = result.fetchall()
-                    data = [dict(row._mapping) for row in data]  # Convert rows to dictionary format
-
-                # Display Results
-                if data:
-                    st.write("### 📊 Query Results:")
-                    st.write(data)
-                else:
-                    st.warning("⚠️ No data found!")
-
-            except Exception as e:
-                st.error(f"⚠️ Query processing error: {e}")
         else:
-            st.error("⚠️ Database chain is not initialized! Please check the connection.")
-    else:
-        st.warning("⚠️ Please enter a question!")
+            sql_query = "N/A"
+            result = "Error: Unable to retrieve data."
 
+    except requests.exceptions.RequestException as e:
+        sql_query = "N/A"
+        result = f"Connection error: {str(e)}"
+    except ValueError:
+        sql_query = "N/A"
+        result = "Error: Invalid JSON received."
+
+    # Display SQL Query in Sidebar
+    with st.sidebar:
+        st.code(sql_query, language="sql")
+
+    # Display Chatbot Response
+    with st.chat_message("assistant"):
+        st.markdown(f"### 📊 Result\n{result}")
+
+    # Save response to chat history
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": f"**Result:**\n{result}"
+    })
